@@ -1,0 +1,98 @@
+[
+  {
+    "id": "nasa-coolr-9905",
+    "type": "mudflow",
+    "name": {
+      "en": "Mudslides in Almaty region",
+      "ru": "Сели в Алматинской области",
+      "kk": "Алматы облысындағы селдер"
+    },
+    "lat": 43.093674,
+    "lon": 76.95661,
+    "region": "Almaty",
+    "verification": "C",
+    "year": 2017,
+    "trigger": "Downpour",
+    "note": "NASA COOLR report point; this is not a mapped landslide boundary.",
+    "source": "NASA Global Landslide Catalog (COOLR)",
+    "sourceLinks": [
+      {
+        "label": "NASA COOLR record · 682",
+        "url": "https://gis.earthdata.nasa.gov/portal/rest/services/Landslides/COOLR_Reports_Points/FeatureServer/0/query?where=objectid%3D682&outFields=*&returnGeometry=true&f=pjson"
+      },
+      {
+        "label": "Kazinform",
+        "url": "http://lenta.inform.kz/en/mudflow-slides-down-in-almaty-region_a3040889"
+      }
+    ],
+    "approx": true,
+    "locationAccuracy": "25km",
+    "fatalities": 0,
+    "injuries": 0,
+    "catalog": "GLC"
+  },
+  {
+    "id": "nasa-coolr-10892",
+    "type": "landslide",
+    "name": {
+      "en": "Landslide on slope in Talgar District",
+      "ru": "Оползень на склоне в Талгарском районе",
+      "kk": "Талғар ауданындағы беткей көшкіні"
+    },
+    "lat": 43.210474,
+    "lon": 77.223215,
+    "region": "Almaty",
+    "verification": "C",
+    "year": 2017,
+    "trigger": "Snowfall and snowmelt",
+    "note": "NASA COOLR report point; this is not a mapped landslide boundary.",
+    "source": "NASA Global Landslide Catalog (COOLR)",
+    "sourceLinks": [
+      {
+        "label": "NASA COOLR record · 3268",
+        "url": "https://gis.earthdata.nasa.gov/portal/rest/services/Landslides/COOLR_Reports_Points/FeatureServer/0/query?where=objectid%3D3268&outFields=*&returnGeometry=true&f=pjson"
+      },
+      {
+        "label": "Kazinform",
+        "url": "http://lenta.inform.kz/en/landslide-hits-almaty-region_a3023783"
+      }
+    ],
+    "approx": true,
+    "locationAccuracy": "10km",
+    "fatalities": 0,
+    "injuries": 0,
+    "catalog": "GLC"
+  },
+  {
+    "id": "nasa-coolr-7260",
+    "type": "mudflow",
+    "name": {
+      "en": "Kargaly River, Chapaevo Settlement in the Nauryzbai District, Auezov District, Almaty",
+      "ru": "Сель на реке Каргалы, посёлок Чапаево, Алматы",
+      "kk": "Қарғалы өзеніндегі, Шапаев елді мекеніндегі сел, Алматы"
+    },
+    "lat": 43.0235,
+    "lon": 76.8515,
+    "region": "Almaty",
+    "verification": "C",
+    "year": 2015,
+    "trigger": "Dam embankment collapse",
+    "note": "NASA COOLR report point; this is not a mapped landslide boundary.",
+    "source": "NASA Global Landslide Catalog (COOLR)",
+    "sourceLinks": [
+      {
+        "label": "NASA COOLR record · 3825",
+        "url": "https://gis.earthdata.nasa.gov/portal/rest/services/Landslides/COOLR_Reports_Points/FeatureServer/0/query?where=objectid%3D3825&outFields=*&returnGeometry=true&f=pjson"
+      },
+      {
+        "label": "Silk Road Reporters",
+        "url": "http://www.silkroadreporters.com/2015/07/23/mudslides-hit-almaty-outskirts/"
+      }
+    ],
+    "approx": true,
+    "locationAccuracy": "5km",
+    "fatalities": 0,
+    "injuries": 6,
+    "catalog": "GLC"
+  }
+]
