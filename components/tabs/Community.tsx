@@ -17,7 +17,7 @@ export default function Community({ reports, onReport, onShow, lang }: { reports
       <div className="report-grid">
         {reports.map((r) => (
           <article key={r.id} className="stat-card">
-            {r.photo && <img className="report-img" src={`/api/uploads/${r.photo}`} alt={t(lang, 'Photo submitted with the report')} loading="lazy" />}
+            {r.photo && <img className="report-img" src={r.photo.startsWith('data:') ? r.photo : `/api/uploads/${r.photo}`} alt={t(lang, 'Photo submitted with the report')} loading="lazy" />}
             <h3>{t(lang, CAT_LABEL[r.category])} <em className={`ver v${r.verification}`}>{r.verification}</em></h3>
             <p className="muted small">{r.createdAt.slice(0, 10)} · {r.lat.toFixed(3)}, {r.lon.toFixed(3)}</p>
             <p>{r.description}</p>

@@ -39,15 +39,35 @@ export default function ReportDrawer({ draft, picking, onPick, onLocate, onClose
     if (description.trim().length < 10) return setError(t(lang, 'Describe what you saw in at least 10 characters.'));
     setBusy(true);
     try {
-      const fd = new FormData();
-      fd.set('category', category); fd.set('description', description.trim());
-      fd.set('lat', String(draft[1])); fd.set('lon', String(draft[0])); fd.set('website', '');
-      if (photo) fd.set('photo', await shrink(photo), 'photo.jpg');
-      const r = await fetch('/api/reports', { method: 'POST', body: fd });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(t(lang, j.error ?? 'Could not send the report.'));
+      let photoDataUrl: string | undefined;
+      if (photo) {
+        const sh = await shrink(photo);
+        photoDataUrl = await new Promise<string>((res, rej) => {
+          const reader = new FileReader();
+          reader.onloadend = () => res(reader.result as string);
+          reader.onerror = rej;
+          reader.readAsDataURL(sh);
+        });
+      }
+      const report: Report = {
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `rep-${Date.now()}`,
+        category,
+        description: description.trim(),
+        lat: +draft[1].toFixed(5),
+        lon: +draft[0].toFixed(5),
+        createdAt: new Date().toISOString(),
+        photo: photoDataUrl,
+        verification: 'C',
+        status: 'published',
+      };
+      try {
+        const existing: Report[] = JSON.parse(localStorage.getItem('kz-landslide-reports') || '[]');
+        localStorage.setItem('kz-landslide-reports', JSON.stringify([report, ...existing]));
+      } catch {
+        /* storage full or unavailable */
+      }
       setSent(true);
-      if (j.report) onDone(j.report);
+      onDone(report);
     } catch (err) {
       setError(err instanceof Error ? t(lang, err.message) : t(lang, 'Could not send the report.'));
     } finally { setBusy(false); }

@@ -188,7 +188,15 @@ export default function Atlas() {
       } catch (e) { if (!ac.signal.aborted) { console.warn(e); setQState('error'); setNotice(t(lang, 'Earthquakes could not be loaded from USGS.')); } }
     })();
     fetchSites(ac.signal).then((s) => { setSites(s); setSState('ok'); }).catch((e) => { if (!ac.signal.aborted) { console.warn(e); setSState('error'); } });
-    fetch('/api/reports').then((r) => (r.ok ? r.json() : { reports: [] })).then((j) => setReports(j.reports ?? [])).catch(() => undefined);
+    try {
+      const localR = JSON.parse(localStorage.getItem('kz-landslide-reports') || '[]');
+      if (Array.isArray(localR) && localR.length) setReports(localR);
+    } catch { /* ignore */ }
+    fetch('/api/reports').then((r) => (r.ok ? r.json() : { reports: [] })).then((j) => {
+      if (Array.isArray(j.reports) && j.reports.length) {
+        setReports((prev) => [...prev, ...j.reports.filter((x: Report) => !prev.some((p) => p.id === x.id))]);
+      }
+    }).catch(() => undefined);
     return () => ac.abort();
   }, []);
 

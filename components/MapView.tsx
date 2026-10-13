@@ -155,7 +155,7 @@ function popupEl(layer: string, p: Record<string, any>, lang: Lang): HTMLElement
   } else if (layer === 'reports-circle') {
     root.append(el('strong', t(lang, CAT_LABEL[p.category] ?? 'Report')), el('div', `${String(p.createdAt).slice(0, 10)} · ${t(lang, 'Verification').toLowerCase()} ${p.verification}`, 'popup-sub'));
     root.append(el('p', p.description));
-    if (p.photo) { const img = document.createElement('img'); img.src = `/api/uploads/${p.photo}`; img.alt = t(lang, 'Photo submitted with the report'); img.loading = 'lazy'; img.className = 'popup-img'; root.append(img); }
+    if (p.photo) { const img = document.createElement('img'); const srcStr = String(p.photo); img.src = srcStr.startsWith('data:') ? srcStr : `/api/uploads/${srcStr}`; img.alt = t(lang, 'Photo submitted with the report'); img.loading = 'lazy'; img.className = 'popup-img'; root.append(img); }
     root.append(el('div', t(lang, 'Community report. Unverified unless marked A or B by a moderator.'), 'popup-src'));
   }
   return root;
