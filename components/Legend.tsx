@@ -11,7 +11,7 @@ import { t } from '@/lib/i18n';
 export default function Legend({ layers, types, limits, lang, onDataHelp }: { layers: Set<LayerId>; types: Set<PlaceType>; limits: Limit[]; lang: Lang; onDataHelp: () => void }) {
   const legend = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; pointerX: number; pointerY: number } | null>(null);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const clamp = useCallback((x: number, y: number) => {
     const el = legend.current, parent = el?.parentElement;

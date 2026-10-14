@@ -91,6 +91,7 @@ export default function Atlas() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileBusy, setProfileBusy] = useState(false);
   const [printData, setPrintData] = useState<PrintData | null>(null);
+  const [quakePanelOpen, setQuakePanelOpen] = useState(false);
   const [limitsOpen, setLimitsOpen] = useState(false);
   const [dataHelpOpen, setDataHelpOpen] = useState(false);
   const [weatherSite, setWeatherSite] = useState<SiteWatch | null>(null);
@@ -216,7 +217,17 @@ export default function Atlas() {
   const counts = useMemo(() => { const c: Record<string, number> = {}; base.forEach((p) => { c[p.type] = (c[p.type] ?? 0) + 1; }); return c; }, [base]);
   const shown = useMemo(() => sortPlaces(base.filter((p) => types.has(p.type)), filters.sort, lang), [base, types, filters.sort, lang]);
 
-  const toggleLayer = (id: LayerId) => setLayers((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleLayer = (id: LayerId) => setLayers((s) => {
+    const n = new Set(s);
+    if (n.has(id)) {
+      n.delete(id);
+      if (id === 'quakes') setQuakePanelOpen(false);
+    } else {
+      n.add(id);
+      if (id === 'quakes') setQuakePanelOpen(true);
+    }
+    return n;
+  });
   const toggleType = (t: PlaceType) => setTypes((s) => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
   const chooseTheme = (mode: ThemeMode) => {
     setThemeMode(mode);
@@ -407,6 +418,7 @@ export default function Atlas() {
                 }}
                 onFlyToQuake={(quake) => {
                   apiRef.current?.flyTo(quake.lon, quake.lat, 11);
+                  setQuakePanelOpen(true);
                 }}
                 onOpenCommunity={() => {
                   setTab('community');
@@ -529,8 +541,8 @@ export default function Atlas() {
               </MapControlDock>
               {layers.has('susc') && !geo.faults.features.some((f) => f.properties?.kind === 'fault') && <div className="data-banner" role="status"><b>{t(lang, 'No available data')}</b><span>{t(lang, 'Susceptibility cannot be shown because fault data is unavailable.')}</span><button className="text-button" onClick={() => setDataHelpOpen(true)}>{t(lang, 'How to contribute data')}</button></div>}
               {layers.has('triggers') && sState === 'error' && <div className="data-banner" role="status"><b>{t(lang, 'No available data')}</b><span>{t(lang, 'Open-Meteo weather feed is unavailable. No trigger levels are shown or estimated.')}</span><button className="text-button" onClick={() => setDataHelpOpen(true)}>{t(lang, 'How to contribute data')}</button></div>}
-              {layers.has('quakes') && (
-                <DraggablePanel placement="right" title={t(lang, 'Earthquakes')} onClose={() => toggleLayer('quakes')} lang={lang}>
+              {layers.has('quakes') && quakePanelOpen && (
+                <DraggablePanel placement="right" title={t(lang, 'Earthquakes')} onClose={() => setQuakePanelOpen(false)} lang={lang}>
                   <QuakePanel f={qf} setF={setQf} quakes={quakes} shown={quakesShown.length} state={qState} lang={lang} />
                 </DraggablePanel>
               )}
