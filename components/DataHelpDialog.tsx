@@ -6,7 +6,9 @@ import { t } from '@/lib/i18n';
 
 export default function DataHelpDialog({ lang, onClose }: { lang: Lang; onClose: () => void }) {
   const closeButton = useRef<HTMLButtonElement>(null);
-  const contact = process.env.NEXT_PUBLIC_DATA_CONTACT;
+  const contact = process.env.NEXT_PUBLIC_DATA_CONTACT || 'izah_nelson@outlook.com';
+  const isUrl = contact.startsWith('http://') || contact.startsWith('https://');
+  const href = isUrl ? contact : `mailto:${contact}?subject=${encodeURIComponent(t(lang, 'Data contribution - SlopeWatch KZ'))}`;
 
   useEffect(() => {
     closeButton.current?.focus();
@@ -28,7 +30,24 @@ export default function DataHelpDialog({ lang, onClose }: { lang: Lang; onClose:
           <li><a href="https://datacatalog.worldbank.org/search/dataset/0064175/central-asia-landslide-susceptibility-map" target="_blank" rel="noreferrer">{t(lang, 'World Bank Central Asia landslide susceptibility map')}</a></li>
           <li><a href="https://data.egov.kz/datasets/view?index=kazakstan_respublikasy_aumagyn5" target="_blank" rel="noreferrer">{t(lang, 'Kazakhstan emergency susceptibility dataset (eGov)')}</a></li>
         </ul>
-        {contact ? <a className="btn primary data-contact" href={`mailto:${contact}?subject=${encodeURIComponent(t(lang, 'Data contribution'))}`}>{t(lang, 'Contact the atlas team')}</a> : <p className="muted small">{t(lang, 'The project contact is not configured yet. Ask the atlas owner to set NEXT_PUBLIC_DATA_CONTACT to enable direct contributions.')}</p>}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', margin: '16px 0 10px' }}>
+          <a
+            className="btn primary data-contact"
+            href={href}
+            target={isUrl ? '_blank' : undefined}
+            rel={isUrl ? 'noreferrer' : undefined}
+          >
+            ✉️ {t(lang, 'Contact the atlas team')}
+          </a>
+          <a
+            className="btn ghost data-contact"
+            href="https://github.com/iamnelsonizah/SlopeWatch-KZ/issues"
+            target="_blank"
+            rel="noreferrer"
+          >
+            🐙 {t(lang, 'Submit via GitHub')}
+          </a>
+        </div>
         <div className="panel-row"><span className="spacer" /><button ref={closeButton} className="btn" onClick={onClose}>{t(lang, 'Close')}</button></div>
       </section>
     </div>
