@@ -6,7 +6,7 @@ import { t } from '@/lib/i18n';
 
 export default function DataHelpDialog({ lang, onClose }: { lang: Lang; onClose: () => void }) {
   const closeButton = useRef<HTMLButtonElement>(null);
-  const contact = process.env.NEXT_PUBLIC_DATA_CONTACT || 'izah_nelson@outlook.com';
+  const contact = process.env.NEXT_PUBLIC_DATA_CONTACT || 'hello@nelsonizah.com';
   const isUrl = contact.startsWith('http://') || contact.startsWith('https://');
   const href = isUrl ? contact : `mailto:${contact}?subject=${encodeURIComponent(t(lang, 'Data contribution - SlopeWatch KZ'))}`;
 
