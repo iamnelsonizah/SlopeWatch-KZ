@@ -30,22 +30,22 @@ export default function DataHelpDialog({ lang, onClose }: { lang: Lang; onClose:
           <li><a href="https://datacatalog.worldbank.org/search/dataset/0064175/central-asia-landslide-susceptibility-map" target="_blank" rel="noreferrer">{t(lang, 'World Bank Central Asia landslide susceptibility map')}</a></li>
           <li><a href="https://data.egov.kz/datasets/view?index=kazakstan_respublikasy_aumagyn5" target="_blank" rel="noreferrer">{t(lang, 'Kazakhstan emergency susceptibility dataset (eGov)')}</a></li>
         </ul>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', margin: '16px 0 10px' }}>
+        <div className="data-contact-row">
           <a
             className="btn primary data-contact"
             href={href}
             target={isUrl ? '_blank' : undefined}
             rel={isUrl ? 'noreferrer' : undefined}
           >
-            ✉️ {t(lang, 'Contact the atlas team')}
+            {t(lang, 'Contact the atlas team')}
           </a>
           <a
-            className="btn ghost data-contact"
+            className="btn data-contact"
             href="https://github.com/iamnelsonizah/SlopeWatch-KZ/issues"
             target="_blank"
             rel="noreferrer"
           >
-            🐙 {t(lang, 'Submit via GitHub')}
+            {t(lang, 'Submit via GitHub')}
           </a>
         </div>
         <div className="panel-row"><span className="spacer" /><button ref={closeButton} className="btn" onClick={onClose}>{t(lang, 'Close')}</button></div>

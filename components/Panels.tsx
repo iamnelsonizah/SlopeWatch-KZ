@@ -5,6 +5,7 @@ import { DEFAULT_SUSC, SUSC_CLASSES, type SuscParams } from '@/lib/terrain';
 import { profileToCsv, profileToGeoJson, type Profile } from '@/lib/profile';
 import type { Lang, LoadState, Quake, SiteWatch } from '@/lib/types';
 import { formatNumber, t } from '@/lib/i18n';
+import Icon from './Icon';
 
 export interface QuakeFilter { minMag: number; yFrom: number; yTo: number }
 
@@ -35,7 +36,7 @@ export function DraggablePanel({
       const el = panel.current, parent = el?.parentElement;
       if (!el || !parent || parent.clientWidth <= 0 || parent.clientHeight <= 0) return null;
       const x = placement === 'right' ? parent.clientWidth - el.offsetWidth - 12 : (parent.clientWidth - el.offsetWidth) / 2;
-      const y = placement === 'right' ? 68 : parent.clientHeight - el.offsetHeight - 12;
+      const y = placement === 'right' ? 108 : parent.clientHeight - el.offsetHeight - 34;
       return clamp(x, y);
     };
     const resize = () => {
@@ -93,7 +94,6 @@ export function DraggablePanel({
           onKeyDown={onKeyDown}
         >
           <div className="panel-drag-left">
-            <span className="panel-drag-grip" aria-hidden="true">⠿</span>
             <span className="panel-drag-title">{title}</span>
           </div>
           {onClose && (
@@ -107,7 +107,7 @@ export function DraggablePanel({
               aria-label={lang ? t(lang, 'Close') : 'Close'}
               title={lang ? t(lang, 'Close') : 'Close'}
             >
-              ×
+              <Icon name="close" />
             </button>
           )}
         </div>
@@ -127,7 +127,7 @@ export function QuakePanel({ f, setF, quakes, shown, state, lang }: { f: QuakeFi
   }, [playing, f, now, setF]);
   return (
     <section className="panel">
-      <p className="muted small" style={{ margin: '0 0 10px', fontSize: '11px' }}>{t(lang, 'Earthquakes · USGS, M3 and above since 1990')}</p>
+      <p className="muted small">{t(lang, 'USGS ComCat, M3 and above since 1990. The catalogue is incomplete below about M 4.5 here; see Earthquake statistics.')}</p>
       {state === 'loading' && <p className="muted">{t(lang, 'Loading earthquake data…')}</p>}
       {state === 'error' && <p className="error">{t(lang, 'Earthquake data is unavailable. The USGS catalogue did not load.')}</p>}
       {state === 'ok' && <>
@@ -141,7 +141,7 @@ export function QuakePanel({ f, setF, quakes, shown, state, lang }: { f: QuakeFi
         <input type="range" min={1990} max={now} value={f.yTo} onChange={(e) => setF({ ...f, yTo: Math.max(+e.target.value, f.yFrom) })} />
       </label>
       <div className="panel-row">
-        <button className="btn" onClick={() => setPlaying((p) => !p)}>{t(lang, playing ? 'Pause' : 'Play through the years')}</button>
+        <button className="btn" onClick={() => setPlaying((p) => !p)}><Icon name={playing ? 'pause' : 'play'} />{t(lang, playing ? 'Pause' : 'Play through the years')}</button>
         <span className="muted">{formatNumber(lang, shown)} / {formatNumber(lang, quakes.length)} {t(lang, 'shown')}</span>
       </div>
       </>}
@@ -182,7 +182,7 @@ export function ProfilePanel({ points, profile, busy, onClear, onUndo, onFlyover
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t(lang, 'Elevation profile')} className="profile-svg">
         <path d={d} fill="none" stroke="var(--ink)" strokeWidth="1.6" />
         {[lo, (lo + hi) / 2, hi].map((e) => <g key={e}><line x1={pad} x2={W - 8} y1={y(e)} y2={y(e)} stroke="var(--line)" /><text x={pad - 4} y={y(e) + 4} textAnchor="end" fontSize="10" fill="var(--muted)">{Math.round(e)}</text></g>)}
-        {profile.crossings.map((c, i) => <g key={i}><line x1={x(c.km)} x2={x(c.km)} y1="8" y2={H - 20} stroke="#d62f4b" strokeWidth="2" strokeDasharray="3 2" /><circle cx={x(c.km)} cy="8" r="3.5" fill="#d62f4b" /></g>)}
+        {profile.crossings.map((c, i) => <g key={i}><line x1={x(c.km)} x2={x(c.km)} y1="8" y2={H - 20} stroke="var(--warn)" strokeWidth="1.5" strokeDasharray="3 2" /><circle cx={x(c.km)} cy="8" r="3.5" fill="var(--warn)" /></g>)}
         <text x={pad} y={H - 6} fontSize="10" fill="var(--muted)">0 km</text>
         <text x={W - 8} y={H - 6} textAnchor="end" fontSize="10" fill="var(--muted)">{profile.totalKm.toFixed(1)} km</text>
       </svg>
@@ -219,7 +219,7 @@ export function ProfilePanel({ points, profile, busy, onClear, onUndo, onFlyover
         {profile && (
           <>
             <button className="btn ghost flyover-btn" onClick={onFlyover} title={t(lang, 'Start 3D tour')}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><polygon points="12 2 19 21 12 17 5 21 12 2" /></svg>
+              <Icon name="cube" />
               {t(lang, '3D Flyover')}
             </button>
             <button className="btn ghost" onClick={downloadCsv} title={t(lang, 'Download elevation profile as CSV')}>CSV</button>
@@ -292,7 +292,7 @@ export function WeatherPanel({
             <span className={`pill lv-${site.level}`}>
               {t(lang, site.level === 'nodata' ? 'No data' : site.level === 'elevated' ? 'Elevated' : site.level === 'watch' ? 'Watch' : 'Low')}
             </span>
-            {site.melt && <span className="pill lv-elevated">⚠ {t(lang, 'Warm after snow')}</span>}
+            {site.melt && <span className="pill lv-watch">{t(lang, 'Warm after snow')}</span>}
           </div>
 
           <div className="weather-stats-grid">
@@ -324,10 +324,11 @@ export function WeatherPanel({
               <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t(lang, '10-day precipitation history & forecast (mm)')} className="weather-svg">
                 {site.days.map((d, i) => {
                   const x = padX + i * (barW + gap);
-                  const barH = Math.max(3, (d.rain / maxRain) * (H - 28));
+                  const barH = d.rain > 0 ? Math.max(2, (d.rain / maxRain) * (H - 28)) : 0.75;
                   const y = H - 18 - barH;
-                  const isFuture = i >= 7;
-                  const isToday = i === 6;
+                  // indices 0-6 are the past 7 days, 7 is today, 8-9 are forecast days
+                  const isFuture = i > 7;
+                  const isToday = i === 7;
                   const dayNum = d.date.slice(8);
                   return (
                     <g key={d.date}>
@@ -336,9 +337,8 @@ export function WeatherPanel({
                         y={y}
                         width={barW}
                         height={barH}
-                        rx="3"
-                        fill={isToday ? 'var(--accent)' : isFuture ? '#4fa3e3' : 'var(--muted)'}
-                        opacity={isToday ? 1 : isFuture ? 0.9 : 0.65}
+                        fill={isToday ? 'var(--ink)' : isFuture ? 'var(--info)' : 'var(--muted)'}
+                        opacity={isToday ? 1 : isFuture ? 0.9 : 0.6}
                       />
                       {d.rain > 0 && (
                         <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize="9" fill="var(--ink)">
@@ -355,7 +355,8 @@ export function WeatherPanel({
             </div>
           )}
 
-          <p className="muted small">{t(lang, 'Heuristic screening from Open-Meteo. Not an official warning.')}</p>
+          <p className="weather-key"><span><i style={{ background: 'var(--muted)', opacity: 0.6 }} />{t(lang, 'Past days')}</span><span><i style={{ background: 'var(--ink)' }} />{t(lang, 'Today')}</span><span><i style={{ background: 'var(--info)' }} />{t(lang, 'Forecast')}</span></p>
+          <p className="muted small">{t(lang, 'Model estimate from Open-Meteo for this grid cell, not a rain-gauge reading. Not an official warning.')}</p>
         </>
       )}
     </section>
@@ -388,18 +389,18 @@ export function LocatePanel({
   const ns = lat >= 0 ? `${lat.toFixed(3)}° N` : `${Math.abs(lat).toFixed(3)}° S`;
   const ew = lon >= 0 ? `${lon.toFixed(3)}° E` : `${Math.abs(lon).toFixed(3)}° W`;
 
-  let slopeCategory = { label: 'Gentle slope', badgeClass: 'pill normal' };
+  let slopeCategory = { label: 'Gentle slope', badgeClass: 'pill lv-low' };
   if (slope != null) {
-    if (slope >= 45) slopeCategory = { label: 'Very steep cliff', badgeClass: 'pill warning' };
-    else if (slope >= 25) slopeCategory = { label: 'Critical slope', badgeClass: 'pill warning' };
-    else if (slope >= 15) slopeCategory = { label: 'Moderate slope', badgeClass: 'pill watch' };
+    if (slope >= 45) slopeCategory = { label: 'Very steep cliff', badgeClass: 'pill lv-elevated' };
+    else if (slope >= 25) slopeCategory = { label: 'Critical slope', badgeClass: 'pill lv-elevated' };
+    else if (slope >= 15) slopeCategory = { label: 'Moderate slope', badgeClass: 'pill lv-watch' };
   }
 
   return (
     <section className="panel locate-panel">
       <div className="locate-coords">
         <span><b>{ns}, {ew}</b></span>
-        <span className={`pill ${inside ? 'normal' : 'watch'}`}>
+        <span className={`pill ${inside ? 'lv-low' : 'lv-watch'}`}>
           {t(lang, inside ? 'Inside Kazakhstan' : 'Outside Kazakhstan')}
         </span>
       </div>
@@ -416,7 +417,7 @@ export function LocatePanel({
           <span className="stat-val">
             {slope != null ? `${slope}°` : '–'}
           </span>
-          <span className={slopeCategory.badgeClass} style={{ fontSize: '10px', marginTop: '2px' }}>
+          <span className={slopeCategory.badgeClass} >
             {t(lang, slopeCategory.label)}
           </span>
         </div>
@@ -444,13 +445,11 @@ export function LocatePanel({
             <span>{t(lang, 'Past 7 days')}: <b>{siteWatch.rainPast7 != null ? `${siteWatch.rainPast7.toFixed(0)} mm` : '–'}</b></span>
             <span>{t(lang, 'Next 3 days')}: <b>{siteWatch.rainNext3 != null ? `${siteWatch.rainNext3.toFixed(0)} mm` : '–'}</b></span>
           </div>
-          {siteWatch.melt && <div className="melt-warning" style={{ fontSize: '11px', marginTop: '4px' }}>⚠ {t(lang, 'Warm after snow')}</div>}
+          {siteWatch.melt && <span className="pill lv-watch">{t(lang, 'Warm after snow')}</span>}
         </div>
       )}
 
-      <p className="muted small" style={{ marginTop: '8px' }}>
-        {t(lang, 'Heuristic screening from Open-Meteo. Not an official warning.')}
-      </p>
+      <p className="muted small">{t(lang, 'Slope and elevation come from open elevation tiles and are approximate. The fault distance uses an incomplete fault map, so a long distance does not mean no hazard. Rain is a model estimate, not an official warning.')}</p>
     </section>
   );
 }

@@ -38,10 +38,10 @@ export function getLimits(c: { faultsInside: number | null; faultsNear: number |
       publicText: t(lang, 'The slope, fault-distance and wetness score has not been checked against a complete landslide inventory. Rain thresholds are reference values, not local warning thresholds. Neither gives a probability or an official hazard assessment.'),
     },
     {
-      id: 'storage', title: t(lang, 'Community report storage'), layers: ['reports'], audience: 'maintainers',
-      short: t(lang, 'Reports are stored in a JSON file and an uploads folder on the server. This setup is not persistent on serverless hosting.'),
-      text: t(lang, 'Reports are stored in a JSON file and an uploads folder on the server. This setup is not persistent on serverless hosting.'),
-      publicText: t(lang, 'Community reports are public and unverified unless a moderator has upgraded them.'),
+      id: 'storage', title: t(lang, 'Community notes'), layers: ['reports'], audience: 'everyone',
+      short: t(lang, 'Hazard notes are stored only in the browser they were written in; they are not shared or moderated.'),
+      text: t(lang, 'The published atlas is a static site with no report server. A hazard note is saved only in the browser it was written in, is visible only there, and is never checked by anyone. Email a note to the atlas team if it should reach other people.'),
+      publicText: t(lang, 'Hazard notes you add are saved only in your own browser. Nobody else sees them and nobody checks them.'),
     },
   ];
 }

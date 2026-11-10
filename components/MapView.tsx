@@ -115,12 +115,13 @@ function popupEl(layer: string, p: Record<string, any>, lang: Lang): HTMLElement
   const root = el('div', undefined, 'popup');
   if (layer === 'places-circle') {
     root.append(el('strong', p.name), el('div', `${typeLabel(p.type, lang)} · ${regionOf(String(p.region ?? ''), lang)}`, 'popup-sub'));
-    row(root, 'Year', p.year ? p.year : null, lang); row(root, 'Magnitude', p.magnitude ? `M ${p.magnitude}` : '', lang); row(root, 'Trigger', p.trigger ? triggerOf(p.trigger, lang) : '', lang);
+    row(root, p.date ? 'Date' : 'Year', p.date ? String(p.date) : p.year ? p.year : null, lang); row(root, 'Magnitude', p.magnitudeText ? String(p.magnitudeText) : p.magnitude ? `M ${p.magnitude}` : '', lang); row(root, 'Trigger', p.trigger ? triggerOf(p.trigger, lang) : '', lang);
     row(root, 'Verification', p.verification + (p.approx ? ` (${t(lang, 'location approximate')})` : ''), lang);
     row(root, 'Catalogue', p.catalog, lang);
     row(root, 'Reported location accuracy', p.locationAccuracy ? String(p.locationAccuracy).replace(/km$/i, ' km') : '', lang);
     row(root, 'Reported fatalities', p.fatalities, lang);
     row(root, 'Reported injuries', p.injuries, lang);
+    row(root, 'Coordinates', Number.isFinite(Number(p.lat)) ? `${formatCoord(Number(p.lat), Number(p.lon))}${p.approx ? ' ≈' : ''}` : '', lang);
     if (p.note) root.append(el('p', noteOf(String(p.id), String(p.note), lang)));
     const source = el('div', undefined, 'popup-src');
     source.append(document.createTextNode(`${t(lang, 'Source:')} ${t(lang, String(p.source ?? 'Published reference'))}`));
@@ -132,9 +133,17 @@ function popupEl(layer: string, p: Record<string, any>, lang: Lang): HTMLElement
     root.append(source);
   } else if (layer === 'quakes-circle') {
     root.append(el('strong', t(lang, 'M {magnitude} earthquake', { magnitude: Number(p.mag).toFixed(1) })), el('div', localQuakePlace(String(p.place || ''), lang), 'popup-sub'));
-    row(root, 'Date', new Date(Number(p.time)).toLocaleDateString(lang === 'ru' ? 'ru-RU' : lang === 'kk' ? 'kk-KZ' : 'en-CA'), lang); row(root, 'Depth', p.depth == null ? null : `${Number(p.depth).toFixed(0)} km`, lang);
+    row(root, 'Time (UTC)', new Date(Number(p.time)).toISOString().slice(0, 16).replace('T', ' '), lang);
+    row(root, 'Magnitude type', p.magType ? String(p.magType) : '', lang);
+    row(root, 'Depth', p.depth == null ? null : `${Number(p.depth).toFixed(0)} km`, lang);
     row(root, 'Region', p.region ? regionOf(String(p.region), lang) : (Number(p.inside) ? '' : t(lang, 'Outside the border')), lang);
-    root.append(el('div', `${t(lang, 'Source:')} USGS ComCat`, 'popup-src'));
+    const qsrc = el('div', `${t(lang, 'Source:')} USGS ComCat · ${String(p.id)}`, 'popup-src');
+    if (/^https:\/\/earthquake\.usgs\.gov\//.test(String(p.url))) {
+      const link = el('a', t(lang, 'Open the USGS event page')) as HTMLAnchorElement;
+      link.href = String(p.url); link.target = '_blank'; link.rel = 'noreferrer'; link.className = 'popup-source-link';
+      qsrc.append(document.createElement('br'), link);
+    }
+    root.append(qsrc);
   } else if (layer === 'faults-hit') {
     root.append(el('strong', t(lang, p.slip === 'Anticline' || p.slip === 'Syncline' ? p.slipLabel : `${p.slipLabel} fault`)));
     row(root, 'Net slip rate', p.rate != null ? `${p.rate} mm/yr${p.rateRange ? ` (${t(lang, 'range')} ${p.rateRange})` : ''}` : '', lang);
@@ -185,6 +194,9 @@ interface HudState {
   slope: number | null;
 }
 
+/** room for the floating controls: a little on phones, more on wide screens */
+const fitPadding = (width: number) => (width < 600 ? { top: 64, left: 14, right: 14, bottom: 30 } : { top: 70, left: 40, right: 40, bottom: 40 });
+
 function formatCoord(lat: number, lng: number): string {
   const ns = lat >= 0 ? `${lat.toFixed(3)}° N` : `${Math.abs(lat).toFixed(3)}° S`;
   const ew = lng >= 0 ? `${lng.toFixed(3)}° E` : `${Math.abs(lng).toFixed(3)}° W`;
@@ -192,93 +204,17 @@ function formatCoord(lat: number, lng: number): string {
 }
 
 export function getLightingStyle(angle: number, dark: boolean) {
-  const a = ((angle % 360) + 360) % 360;
+  const illuminationDirection = ((angle % 360) + 360) % 360;
+  const blend = { 'fog-ground-blend': 0.4, 'horizon-fog-blend': 0.8, 'sky-horizon-blend': 0.8 };
   if (dark) {
     return {
-      illuminationDirection: a,
-      shadowColor: 'rgba(0, 0, 0, 0.70)',
-      highlightColor: 'rgba(180, 220, 255, 0.08)',
-      accentColor: 'rgba(0, 0, 0, 0.45)',
-      sky: {
-        'sky-color': '#050c14',
-        'horizon-color': '#0c1824',
-        'fog-color': '#09121b',
-        'fog-ground-blend': 0.35,
-        'horizon-fog-blend': 0.8,
-        'sky-horizon-blend': 0.8,
-        'atmosphere-blend': 0.85,
-      },
+      illuminationDirection, shadowColor: 'rgba(0, 0, 0, 0.70)', highlightColor: 'rgba(232, 228, 218, 0.07)', accentColor: 'rgba(0, 0, 0, 0.45)',
+      sky: { 'sky-color': '#0a121a', 'horizon-color': '#141e2a', 'fog-color': '#0e1620', ...blend, 'atmosphere-blend': 0.85 },
     };
   }
-  // Dawn (60° - 140°)
-  if (a >= 60 && a < 140) {
-    return {
-      illuminationDirection: a,
-      shadowColor: 'rgba(40, 30, 60, 0.42)',
-      highlightColor: 'rgba(255, 230, 200, 0.15)',
-      accentColor: 'rgba(70, 30, 50, 0.15)',
-      sky: {
-        'sky-color': '#6366f1',
-        'horizon-color': '#f472b6',
-        'fog-color': '#fbcfe8',
-        'fog-ground-blend': 0.5,
-        'horizon-fog-blend': 0.8,
-        'sky-horizon-blend': 0.8,
-        'atmosphere-blend': 0.75,
-      },
-    };
-  }
-  // Noon (140° - 220°)
-  if (a >= 140 && a < 220) {
-    return {
-      illuminationDirection: a,
-      shadowColor: 'rgba(20, 30, 44, 0.32)',
-      highlightColor: 'rgba(255, 255, 255, 0.08)',
-      accentColor: 'rgba(15, 23, 42, 0.10)',
-      sky: {
-        'sky-color': '#60a5fa',
-        'horizon-color': '#bfdbfe',
-        'fog-color': '#e0f2fe',
-        'fog-ground-blend': 0.4,
-        'horizon-fog-blend': 0.8,
-        'sky-horizon-blend': 0.8,
-        'atmosphere-blend': 0.65,
-      },
-    };
-  }
-  // Sunset / Alpenglow (240° - 300°)
-  if (a >= 240 && a < 300) {
-    return {
-      illuminationDirection: a,
-      shadowColor: 'rgba(30, 15, 45, 0.50)',
-      highlightColor: 'rgba(255, 180, 120, 0.22)',
-      accentColor: 'rgba(90, 20, 40, 0.20)',
-      sky: {
-        'sky-color': '#312e81',
-        'horizon-color': '#e11d48',
-        'fog-color': '#fda4af',
-        'fog-ground-blend': 0.55,
-        'horizon-fog-blend': 0.85,
-        'sky-horizon-blend': 0.85,
-        'atmosphere-blend': 0.8,
-      },
-    };
-  }
-  // Default Afternoon (315°)
   return {
-    illuminationDirection: a,
-    shadowColor: 'rgba(24, 34, 50, 0.35)',
-    highlightColor: 'rgba(255, 255, 255, 0.05)',
-    accentColor: 'rgba(15, 23, 42, 0.10)',
-    sky: {
-      'sky-color': '#8cb8e6',
-      'horizon-color': '#e2ecf7',
-      'fog-color': '#edf3fa',
-      'fog-ground-blend': 0.45,
-      'horizon-fog-blend': 0.8,
-      'sky-horizon-blend': 0.8,
-      'atmosphere-blend': 0.7,
-    },
+    illuminationDirection, shadowColor: 'rgba(20, 32, 43, 0.36)', highlightColor: 'rgba(255, 255, 255, 0.06)', accentColor: 'rgba(20, 32, 43, 0.10)',
+    sky: { 'sky-color': '#b9cbd9', 'horizon-color': '#e6e3da', 'fog-color': '#efece4', ...blend, 'atmosphere-blend': 0.7 },
   };
 }
 
@@ -479,26 +415,26 @@ export default function MapView(props: Props) {
 
     // border always on top of the context layers
     geo('border', p.geo.border);
-    addLayer({ id: 'kz-border-casing', type: 'line', source: 'border', layout: { 'line-join': 'round' }, paint: { 'line-color': p.dark ? '#050b12' : '#ffffff', 'line-opacity': p.dark ? 0.95 : 0.9, 'line-width': ['interpolate', ['linear'], ['zoom'], 3, 4, 8, 7] } });
-    addLayer({ id: 'kz-border', type: 'line', source: 'border', layout: { 'line-join': 'round' }, paint: { 'line-color': p.dark ? '#38bdf8' : '#0a3d4f', 'line-width': ['interpolate', ['linear'], ['zoom'], 3, 1.8, 8, 3.2] } });
+    addLayer({ id: 'kz-border-casing', type: 'line', source: 'border', layout: { 'line-join': 'round' }, paint: { 'line-color': p.dark ? '#0a121a' : '#fbf9f4', 'line-opacity': p.dark ? 0.95 : 0.9, 'line-width': ['interpolate', ['linear'], ['zoom'], 3, 3.4, 8, 6] } });
+    addLayer({ id: 'kz-border', type: 'line', source: 'border', layout: { 'line-join': 'round' }, paint: { 'line-color': p.dark ? '#e8e4da' : '#14202b', 'line-width': ['interpolate', ['linear'], ['zoom'], 3, 1.2, 8, 2.2] } });
 
     // event layers
     geo('quakes', p.quakes);
     addLayer({ id: 'quakes-circle', type: 'circle', source: 'quakes', paint: {
       'circle-radius': ['interpolate', ['linear'], ['get', 'mag'], 3, 2.5, 5, 6, 7, 16, 8, 24],
-      'circle-color': ['case', ['==', ['get', 'depth'], null], '#737f86', ['step', ['get', 'depth'], '#e5384f', 20, '#f08a24', 70, '#e8c21a', 150, '#3b82c4']],
+      'circle-color': ['case', ['==', ['get', 'depth'], null], '#737f86', ['step', ['get', 'depth'], '#c2452d', 20, '#d98a2b', 70, '#b9a23a', 150, '#3f73a8']],
       'circle-opacity': ['case', ['==', ['get', 'inside'], 1], 0.78, 0.4], 'circle-stroke-color': p.dark ? '#0b131e' : '#ffffff', 'circle-stroke-width': 0.7 } });
     geo('triggers', sitesFC(p.sites));
-    const lvl: any = ['match', ['get', 'level'], 'elevated', '#c62828', 'watch', '#e0a100', 'nodata', '#9aa5ab', '#2e9d5c'];
+    const lvl: any = ['match', ['get', 'level'], 'elevated', '#b5401c', 'watch', '#c98a12', 'nodata', '#9aa5ab', '#4f8a3b'];
     addLayer({ id: 'triggers-halo', type: 'circle', source: 'triggers', paint: { 'circle-radius': 15, 'circle-opacity': 0.25, 'circle-color': lvl } });
     addLayer({ id: 'triggers-circle', type: 'circle', source: 'triggers', paint: { 'circle-radius': 7, 'circle-color': lvl, 'circle-stroke-color': p.dark ? '#0b131e' : '#fff', 'circle-stroke-width': 2 } });
     geo('reports', reportsFC(p.reports));
-    addLayer({ id: 'reports-circle', type: 'circle', source: 'reports', paint: { 'circle-radius': 7, 'circle-color': '#27353c', 'circle-stroke-width': 3, 'circle-stroke-color': ['match', ['get', 'verification'], 'A', '#2e9d5c', 'B', '#e0a100', '#c62828'] } });
+    addLayer({ id: 'reports-circle', type: 'circle', source: 'reports', paint: { 'circle-radius': 7, 'circle-color': '#27353c', 'circle-stroke-width': 3, 'circle-stroke-color': ['match', ['get', 'verification'], 'A', '#4f8a3b', 'B', '#c98a12', '#b5401c'] } });
 
     // tool layers and places
     geo('profile', profileFC(p.profilePath));
-    addLayer({ id: 'profile-line', type: 'line', source: 'profile', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': p.dark ? '#38bdf8' : '#111', 'line-width': 3, 'line-dasharray': [2, 1] } });
-    addLayer({ id: 'profile-pts', type: 'circle', source: 'profile', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 5, 'circle-color': p.dark ? '#0f172a' : '#fff', 'circle-stroke-color': p.dark ? '#38bdf8' : '#111', 'circle-stroke-width': 2 } });
+    addLayer({ id: 'profile-line', type: 'line', source: 'profile', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': p.dark ? '#e3b04b' : '#14202b', 'line-width': 3, 'line-dasharray': [2, 1] } });
+    addLayer({ id: 'profile-pts', type: 'circle', source: 'profile', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 5, 'circle-color': p.dark ? '#0f172a' : '#fff', 'circle-stroke-color': p.dark ? '#e3b04b' : '#14202b', 'circle-stroke-width': 2 } });
     geo('places', placesToGeoJSON(p.places, p.lang));
     addLayer({ id: 'places-circle', type: 'circle', source: 'places', paint: { 'circle-color': ['match', ['get', 'type'], ...TYPE_COLORS, '#888'] as any, 'circle-radius': ['get', 'r'], 'circle-opacity': ['case', ['==', ['get', 'approx'], 1], 0.6, 0.95], 'circle-stroke-color': p.dark ? '#0b131e' : '#fff', 'circle-stroke-width': 1.5 } });
     addLayer({ id: 'places-selected', type: 'circle', source: 'places', filter: ['==', ['get', 'id'], ''], paint: { 'circle-radius': 17, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#f2b705', 'circle-stroke-width': 3 } });
@@ -515,16 +451,16 @@ export default function MapView(props: Props) {
     if (map.getLayer('lakes-line')) map.setPaintProperty('lakes-line', 'line-color', p.dark ? '#275270' : '#5aa2cf');
     if (map.getLayer('rivers-line')) map.setPaintProperty('rivers-line', 'line-color', p.dark ? '#2f6892' : '#2d86c4');
     if (map.getLayer('regions-line')) map.setPaintProperty('regions-line', 'line-color', p.dark ? '#33485c' : '#6b7c85');
-    if (map.getLayer('kz-border-casing')) map.setPaintProperty('kz-border-casing', 'line-color', p.dark ? '#050b12' : '#ffffff');
-    if (map.getLayer('kz-border')) map.setPaintProperty('kz-border', 'line-color', p.dark ? '#38bdf8' : '#0a3d4f');
+    if (map.getLayer('kz-border-casing')) map.setPaintProperty('kz-border-casing', 'line-color', p.dark ? '#0a121a' : '#fbf9f4');
+    if (map.getLayer('kz-border')) map.setPaintProperty('kz-border', 'line-color', p.dark ? '#e8e4da' : '#14202b');
     if (map.getLayer('cities-circle')) {
       map.setPaintProperty('cities-circle', 'circle-color', p.dark ? '#e2e8f0' : '#27353c');
       map.setPaintProperty('cities-circle', 'circle-stroke-color', p.dark ? '#0b131e' : '#ffffff');
     }
-    if (map.getLayer('profile-line')) map.setPaintProperty('profile-line', 'line-color', p.dark ? '#38bdf8' : '#111');
+    if (map.getLayer('profile-line')) map.setPaintProperty('profile-line', 'line-color', p.dark ? '#e3b04b' : '#14202b');
     if (map.getLayer('profile-pts')) {
       map.setPaintProperty('profile-pts', 'circle-color', p.dark ? '#0f172a' : '#fff');
-      map.setPaintProperty('profile-pts', 'circle-stroke-color', p.dark ? '#38bdf8' : '#111');
+      map.setPaintProperty('profile-pts', 'circle-stroke-color', p.dark ? '#e3b04b' : '#14202b');
     }
     if (map.getLayer('places-circle')) map.setPaintProperty('places-circle', 'circle-stroke-color', p.dark ? '#0b131e' : '#ffffff');
     if (map.getLayer('quakes-circle')) map.setPaintProperty('quakes-circle', 'circle-stroke-color', p.dark ? '#0b131e' : '#ffffff');
@@ -568,19 +504,21 @@ export default function MapView(props: Props) {
     const map = new maplibregl.Map({
       container: box.current,
       style: getBasemapStyle(P.current.basemap, P.current.dark),
-      ...(iv ? { center: [iv.lng, iv.lat] as [number, number], zoom: iv.z, pitch: iv.pitch, bearing: iv.bearing } : { bounds: [[46.2, 40.4], [87.6, 55.6]] as [[number, number], [number, number]], fitBoundsOptions: { padding: { top: 120, left: 30, right: 30, bottom: 30 } } }),
-      maxBounds: [[28, 30], [106, 64]], minZoom: 2.5, maxZoom: 15, maxPitch: 75, trackResize: false,
+      ...(iv ? { center: [iv.lng, iv.lat] as [number, number], zoom: iv.z, pitch: iv.pitch, bearing: iv.bearing } : { bounds: [[46.2, 40.4], [87.6, 55.6]] as [[number, number], [number, number]], fitBoundsOptions: { padding: fitPadding(box.current.clientWidth) } }),
+      maxBounds: [[28, 30], [106, 64]], minZoom: 1.8, maxZoom: 15, maxPitch: 75, trackResize: false,
       attributionControl: { compact: true }, preserveDrawingBuffer: true,
     });
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+    // The attribution starts collapsed behind its (i) button so the long credit line does not cover the legend.
+    map.once('load', () => map.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
 
     P.current.apiRef.current = {
       capture: () => { try { return map.getCanvas().toDataURL('image/png'); } catch { return null; } },
       flyTo: (lng, lat, zoom = 9) => map.flyTo({ center: [lng, lat], zoom, speed: 1.2 }),
       flyToLandmark: ({ center, zoom, pitch, bearing }) => map.flyTo({ center, zoom, pitch, bearing, speed: 1.25, curve: 1.4, essential: true }),
-      fitKazakhstan: () => map.fitBounds([[46.2, 40.4], [87.6, 55.6]], { padding: { top: 120, left: 30, right: 30, bottom: 30 }, pitch: 0, bearing: 0 }),
+      fitKazakhstan: () => map.fitBounds([[46.2, 40.4], [87.6, 55.6]], { padding: fitPadding(map.getContainer().clientWidth), pitch: 0, bearing: 0 }),
       startFlyover,
       stopFlyover,
     };
@@ -816,7 +754,7 @@ export default function MapView(props: Props) {
     )}
     {flyoverState && (
       <div className="flyover-hud" role="status" aria-live="polite">
-        <span className="flyover-badge">🛰️ {t(props.lang, '3D Flyover')}</span>
+        <span className="flyover-badge">{t(props.lang, '3D Flyover')}</span>
         <span className="flyover-info">
           {flyoverState.km.toFixed(1)} km · {flyoverState.step}/{flyoverState.total}
         </span>
@@ -827,7 +765,7 @@ export default function MapView(props: Props) {
           aria-label={t(props.lang, flyoverState.paused ? 'Resume' : 'Pause')}
           title={t(props.lang, flyoverState.paused ? 'Resume' : 'Pause')}
         >
-          {flyoverState.paused ? '▶' : '⏸'}
+          {t(props.lang, flyoverState.paused ? 'Resume' : 'Pause')}
         </button>
         <button
           type="button"
@@ -836,7 +774,7 @@ export default function MapView(props: Props) {
           aria-label={t(props.lang, 'Stop')}
           title={t(props.lang, 'Stop')}
         >
-          ⏹
+          {t(props.lang, 'Stop')}
         </button>
       </div>
     )}

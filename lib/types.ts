@@ -13,6 +13,10 @@ export interface Place {
   verification: Verification;
   year?: number;
   magnitude?: number;
+  /** shown instead of the single number when published estimates disagree */
+  magnitudeText?: string;
+  /** ISO date of the event when the day is documented */
+  date?: string;
   trigger?: string;
   note?: string;
   source: string;
@@ -35,6 +39,10 @@ export interface Quake {
   lat: number;
   lon: number;
   place: string;
+  /** magnitude scale reported by the catalogue (mb, mww, ...) */
+  magType: string;
+  /** USGS event page */
+  url: string;
   /** inside the national border (otherwise within ~100 km of it) */
   inside: boolean;
   region: string;

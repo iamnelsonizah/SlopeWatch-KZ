@@ -28,7 +28,9 @@ Without keys the basemap uses OpenFreeMap vector tiles for sharp, switchable lab
 | Events, lakes, mitigation | Curated records | `lib/events.ts` (8 cited landmarks around Almaty); extend with the importer |
 | Elevation profile | Terrarium tiles | Draw a line; shows climb, steepest step and every mapped fault crossed |
 | Exposure | Natural Earth cities, faults | Distance to nearest mapped fault, quake counts |
-| Community reports | Your server | Photo upload, unverified level C, moderation API |
+| Hazard notes | Browser storage | Saved on the reporter's device only in the static build; can be emailed or downloaded. The server API in `server-api/` is not deployed |
+| Downloads and citation | Built in | Records and filtered earthquakes as CSV/GeoJSON with provenance headers; suggested citation, methods and references on the Data tab |
+| Earthquake statistics | USGS ComCat | Frequency-magnitude plot, completeness magnitude (maximum curvature + 0.2), b-value (Aki-Utsu), depth and magnitude-scale breakdown |
 | Share and print | URL state, canvas capture | Link restores layers, view, filters; Print sheet or PNG |
 
 ## Data limits you should know
@@ -54,6 +56,8 @@ The app shows these limits to users: a notice on first visit (reopen it with the
 Add `--dry` to preview an import.
 
 ## Community reports
+
+> The published site is a static export (`output: 'export'`), so nothing below runs there: hazard notes stay in the reporter's browser and the UI says so. The API described here lives in `server-api/` and only applies if you deploy it on a server and set `NEXT_PUBLIC_REPORTS_API=1`.
 
 `POST /api/reports` (multipart: `category`, `description`, `lat`, `lon`, optional `photo`) stores a report as level C. Checks: category list, 10 to 600 characters, location inside Kazakhstan, JPEG/PNG/WebP by file signature up to 3 MB, a honeypot field, and 5 reports per hour per IP. Photos are re-encoded in the browser, which removes EXIF and GPS data. No names or contact details are collected.
 

@@ -31,6 +31,8 @@ export default function ReportDrawer({ draft, picking, onPick, onLocate, onClose
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
+  const [mailHref, setMailHref] = useState('');
+  const contact = process.env.NEXT_PUBLIC_DATA_CONTACT || 'hello@nelsonizah.com';
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -66,6 +68,7 @@ export default function ReportDrawer({ draft, picking, onPick, onLocate, onClose
       } catch {
         /* storage full or unavailable */
       }
+      setMailHref(`mailto:${contact}?subject=${encodeURIComponent('Slope hazard report - SlopeWatch KZ')}&body=${encodeURIComponent(`Category: ${report.category}\nLocation: ${report.lat}, ${report.lon}\nObserved: ${report.createdAt}\n\n${report.description}\n`)}`);
       setSent(true);
       onDone(report);
     } catch (err) {
@@ -75,9 +78,11 @@ export default function ReportDrawer({ draft, picking, onPick, onLocate, onClose
 
   if (sent) return (
     <section className="panel">
-      <h3>{t(lang, 'Thank you')}</h3>
-      <p>{t(lang, 'Your report is on the map as an unverified pin (level C). A moderator may upgrade or remove it.')}</p>
-      <p className="callout">{t(lang, 'If anyone is in danger right now, call your national emergency number (112). This map is not monitored in real time.')}</p>
+      <h3>{t(lang, 'Saved on this device')}</h3>
+      <p>{t(lang, 'Your note is on your map as an unverified pin (level C). It is stored in this browser only: the atlas has no report server yet, so nobody else can see it.')}</p>
+      <p>{t(lang, 'To get it to the atlas team, send it by email. Your mail app opens with the details filled in; add the photo yourself if you want to share it.')}</p>
+      <a className="btn primary" href={mailHref}>{t(lang, 'Email this report')}</a>
+      <p className="callout">{t(lang, 'If anyone is in danger right now, call 112. This map is not monitored.')}</p>
       <button className="btn" onClick={onClose}>{t(lang, 'Close')}</button>
     </section>
   );
@@ -100,10 +105,10 @@ export default function ReportDrawer({ draft, picking, onPick, onLocate, onClose
         <label>{t(lang, 'Photo (optional, JPEG, PNG or WebP)')}
           <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
         </label>
-        <p className="muted small">{t(lang, 'Photos are resized in your browser and their metadata (including GPS) is removed before upload. Reports are public. No name or contact details are collected.')}</p>
+        <p className="muted small">{t(lang, 'The note and photo stay in this browser. Photos are resized and their metadata (including GPS) is removed. Nothing is sent anywhere unless you email it afterwards.')}</p>
         <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hp" aria-hidden="true" />
         {error && <p className="error" role="alert">{error}</p>}
-        <button className="btn primary" disabled={busy}>{t(lang, busy ? 'Sending…' : 'Send report')}</button>
+        <button className="btn primary" disabled={busy}>{t(lang, busy ? 'Saving…' : 'Save report')}</button>
       </form>
     </section>
   );

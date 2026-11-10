@@ -1,4 +1,5 @@
 import type { Lang } from './types';
+import { EXTRA } from './i18n.extra';
 
 type Copy = Record<Lang, string>;
 
@@ -149,6 +150,8 @@ const COPY: Record<string, Copy> = {
   'This atlas contains {events} cited reference and report records, mostly near Almaty. Some are earthquakes, lakes or protection structures rather than landslides. It is not a national inventory; blank areas do not mean no event occurred. NASA point accuracy and source links appear in each popup.': { en: 'This atlas contains {events} cited reference and report records, mostly near Almaty. Some are earthquakes, lakes or protection structures rather than landslides. It is not a national inventory; blank areas do not mean no event occurred. NASA point accuracy and source links appear in each popup.', ru: 'В атласе {events} цитируемых справочных записей и сообщений, в основном рядом с Алматы. Некоторые относятся к землетрясениям, озёрам или защитным сооружениям, а не к оползням. Это не национальный каталог: пустые области не означают, что событий не было. Точность точек NASA и ссылки на источники показаны во всплывающих окнах.', kk: 'Атласта негізінен Алматы маңындағы дереккөзі көрсетілген {events} анықтамалық жазба мен хабарлама бар. Кейбірі көшкін емес, жер сілкінісі, көл немесе қорғаныс құрылыстары туралы. Бұл ұлттық тізілім емес; бос аймақтар оқиға болмағанын білдірмейді. NASA нүктелерінің дәлдігі мен дереккөз сілтемелері қалқымалы терезеде берілген.' },
   'The slope, fault and wetness score and the rain thresholds have not been validated against a landslide inventory. Treat them as screening aids, not probabilities, warnings or hazard maps.': { en: 'The slope, fault and wetness score and the rain thresholds have not been validated against a landslide inventory. Treat them as screening aids, not probabilities, warnings or hazard maps.', ru: 'Оценка по уклону, разломам и увлажнению, а также пороги осадков не проверялись по каталогу оползней. Это ориентиры для первичного анализа, а не вероятности, предупреждения или карты опасностей.', kk: 'Еңіс, жарылым және ылғалға негізделген баға мен жауын-шашын шектері көшкіндер тізілімімен тексерілмеген. Бұлар бастапқы шолу құралы ғана; ықтималдық, ескерту немесе қауіптілік картасы емес.' },
 };
+
+Object.assign(COPY, EXTRA);
 
 export function t(lang: Lang, key: string, values: Record<string, string | number> = {}): string {
   let text = COPY[key]?.[lang] ?? key;

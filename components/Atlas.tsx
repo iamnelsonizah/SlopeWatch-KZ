@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BASEMAPS, getBasemapProvider, type BasemapId } from '@/lib/basemaps';
+import { BASEMAPS, type BasemapId } from '@/lib/basemaps';
 import { PLACES, nameOf, sortPlaces, type SortId } from '@/lib/events';
 import { fcContains, nearestSeg, segments, type LL } from '@/lib/geo';
 import { DEFAULT_LAYERS, type LayerId } from '@/lib/layers';
@@ -15,15 +15,17 @@ import { EMPTY_FC, type FC, type Lang, type LoadState, type PlaceType, type Quak
 import type { Geo, MapApi, Tool, View } from './MapView';
 import Sidebar, { type Filters } from './Sidebar';
 import LayerBar from './LayerBar';
-import MapControlDock from './MapControlDock';
+import ToolsMenu from './ToolsMenu';
+import StatusStrip from './StatusStrip';
+import Icon, { type IconName } from './Icon';
 import Legend from './Legend';
 import LimitsDialog from './LimitsDialog';
 import { getLimits } from '@/lib/limits';
 import { localName, localRegion, t } from '@/lib/i18n';
 import PrintSheet, { type PrintData } from './PrintSheet';
 import ReportDrawer from './ReportDrawer';
-import { LANDMARKS, landmarkName, landmarkBadge, landmarkDesc, type Landmark } from '@/lib/landmarks';
-import HazardPulse from './HazardPulse';
+import type { Landmark } from '@/lib/landmarks';
+import { download, placesCsv, placesGeoJson, today } from '@/lib/export';
 import { DraggablePanel, LocatePanel, ProfilePanel, QuakePanel, SuscPanel, WeatherPanel, type LocateData, type QuakeFilter } from './Panels';
 import TriggerWatch from './tabs/TriggerWatch';
 import Exposure from './tabs/Exposure';
@@ -36,14 +38,17 @@ import DataHelpDialog from './DataHelpDialog';
 const MapView = dynamic(() => import('./MapView'), { ssr: false, loading: () => <div className="map-canvas map-loading" /> });
 
 const TABS = [
-  { id: 'map', label: 'Map' }, { id: 'triggers', label: 'Trigger watch' }, { id: 'exposure', label: 'Exposure' },
-  { id: 'quakes', label: 'Earthquake statistics' }, { id: 'community', label: 'Community' }, { id: 'learn', label: 'Understand the hazards' }, { id: 'data', label: 'Data and sources' },
-] as const;
+  { id: 'map', label: 'Map', short: 'Map', icon: 'map' }, { id: 'triggers', label: 'Trigger watch', short: 'Triggers', icon: 'rain' },
+  { id: 'quakes', label: 'Earthquake statistics', short: 'Quakes', icon: 'wave' }, { id: 'exposure', label: 'Exposure', short: 'Exposure', icon: 'city' },
+  { id: 'community', label: 'Community', short: 'Community', icon: 'users' }, { id: 'learn', label: 'Understand the hazards', short: 'Learn', icon: 'book' },
+  { id: 'data', label: 'Data and sources', short: 'Data', icon: 'database' },
+] as const satisfies readonly { id: string; label: string; short: string; icon: IconName }[];
 type TabId = (typeof TABS)[number]['id'];
 const ALL_TYPES: PlaceType[] = ['landslide', 'mudflow', 'glacial', 'quake', 'protection'];
 const LANGS: { id: Lang; label: string }[] = [{ id: 'en', label: 'EN' }, { id: 'ru', label: 'РУС' }, { id: 'kk', label: 'ҚАЗ' }];
 type ThemeMode = 'system' | 'light' | 'dark';
-const THEMES: { id: ThemeMode; label: string }[] = [{ id: 'system', label: 'System' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }];
+const PRIMARY_TABS: TabId[] = ['map', 'triggers', 'quakes', 'data'];
+const MORE_TABS: TabId[] = ['exposure', 'community', 'learn'];
 const THIS_YEAR = new Date().getFullYear();
 
 async function loadFC(url: string): Promise<FC> {
@@ -55,10 +60,10 @@ export default function Atlas() {
   const [lang, setLang] = useState<Lang>('en');
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
   const [systemDark, setSystemDark] = useState(false);
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
-  const themeMenu = useRef<HTMLDivElement>(null);
-  const themeButton = useRef<HTMLButtonElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [basemap, setBasemap] = useState<BasemapId>('map');
   const [focus, setFocus] = useState(true);
   const [layers, setLayers] = useState<Set<LayerId>>(new Set(DEFAULT_LAYERS));
@@ -81,8 +86,6 @@ export default function Atlas() {
   const [reports, setReports] = useState<Report[]>([]);
   const [susc, setSusc] = useState<SuscParams>(DEFAULT_SUSC);
   const [terrain3d, setTerrain3d] = useState(false);
-  const [landmarkMenuOpen, setLandmarkMenuOpen] = useState(false);
-  const landmarkMenuRef = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [draft, setDraft] = useState<LL | null>(null);
@@ -103,8 +106,6 @@ export default function Atlas() {
 
   // ---- sun lighting & flyover & locate me ----
   const [sunAngle, setSunAngle] = useState(315);
-  const [sunMenuOpen, setSunMenuOpen] = useState(false);
-  const sunMenuRef = useRef<HTMLDivElement>(null);
 
   const [locating, setLocating] = useState(false);
   const [locateData, setLocateData] = useState<LocateData | null>(null);
@@ -138,7 +139,7 @@ export default function Atlas() {
   const onMove = useCallback((v: View) => { viewRef.current = v; writeUrl(); }, [writeUrl]);
 
   const dark = themeMode === 'dark' || (themeMode === 'system' && systemDark);
-  useEffect(() => { document.documentElement.dataset.theme = themeMode; }, [themeMode]);
+  useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; }, [dark]);
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const update = () => setSystemDark(media.matches);
@@ -147,29 +148,11 @@ export default function Atlas() {
     return () => media.removeEventListener('change', update);
   }, []);
   useEffect(() => {
-    if (!themeMenuOpen) return;
-    const closeOutside = (e: PointerEvent) => { if (!themeMenu.current?.contains(e.target as Node)) setThemeMenuOpen(false); };
-    const closeOnEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') { setThemeMenuOpen(false); themeButton.current?.focus(); } };
-    document.addEventListener('pointerdown', closeOutside);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeOnEscape); };
-  }, [themeMenuOpen]);
-  useEffect(() => {
-    if (!landmarkMenuOpen) return;
-    const closeOutside = (e: PointerEvent) => { if (!landmarkMenuRef.current?.contains(e.target as Node)) setLandmarkMenuOpen(false); };
-    const closeOnEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setLandmarkMenuOpen(false); };
-    document.addEventListener('pointerdown', closeOutside);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeOnEscape); };
-  }, [landmarkMenuOpen]);
-  useEffect(() => {
-    if (!sunMenuOpen) return;
-    const closeOutside = (e: PointerEvent) => { if (!sunMenuRef.current?.contains(e.target as Node)) setSunMenuOpen(false); };
-    const closeOnEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setSunMenuOpen(false); };
-    document.addEventListener('pointerdown', closeOutside);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeOnEscape); };
-  }, [sunMenuOpen]);
+    if (!layersOpen && !toolsOpen && !moreOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setLayersOpen(false); setToolsOpen(false); setMoreOpen(false); } };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [layersOpen, toolsOpen, moreOpen]);
   useEffect(() => { document.documentElement.lang = lang; try { localStorage.setItem('kz-landslide-language', lang); } catch { /* ignore */ } }, [lang]);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(null), 7000); return () => clearTimeout(t); }, [notice]);
 
@@ -193,10 +176,9 @@ export default function Atlas() {
       const localR = JSON.parse(localStorage.getItem('kz-landslide-reports') || '[]');
       if (Array.isArray(localR) && localR.length) setReports(localR);
     } catch { /* ignore */ }
-    fetch('/api/reports').then((r) => (r.ok ? r.json() : { reports: [] })).then((j) => {
-      if (Array.isArray(j.reports) && j.reports.length) {
-        setReports((prev) => [...prev, ...j.reports.filter((x: Report) => !prev.some((p) => p.id === x.id))]);
-      }
+    // The published site is a static export with no report server, so shared reports are only requested when one is configured.
+    if (process.env.NEXT_PUBLIC_REPORTS_API === '1') fetch('/api/reports').then((r) => (r.ok ? r.json() : { reports: [] })).then((j) => {
+      if (Array.isArray(j.reports) && j.reports.length) setReports((prev) => [...prev, ...j.reports.filter((x: Report) => !prev.some((p) => p.id === x.id))]);
     }).catch(() => undefined);
     return () => ac.abort();
   }, []);
@@ -229,11 +211,16 @@ export default function Atlas() {
     return n;
   });
   const toggleType = (t: PlaceType) => setTypes((s) => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
-  const chooseTheme = (mode: ThemeMode) => {
-    setThemeMode(mode);
-    setThemeMenuOpen(false);
-    try { localStorage.setItem('kz-landslide-theme', mode); } catch { /* ignore */ }
+  const toggleTheme = () => {
+    const next: ThemeMode = dark ? 'light' : 'dark';
+    setThemeMode(next);
+    try { localStorage.setItem('kz-landslide-theme', next); } catch { /* ignore */ }
   };
+  const resetFilters = () => { setFilters({ q: '', region: '', verification: '', sort: 'newest' }); setTypes(new Set(ALL_TYPES)); };
+  const activeFilters = (filters.region ? 1 : 0) + (filters.verification ? 1 : 0) + (types.size < ALL_TYPES.length ? 1 : 0);
+  const downloadRecords = (format: 'csv' | 'geojson') => format === 'csv'
+    ? download(`slopewatch-kz-records-${today()}.csv`, placesCsv(shown), 'text/csv;charset=utf-8')
+    : download(`slopewatch-kz-records-${today()}.geojson`, placesGeoJson(shown), 'application/geo+json;charset=utf-8');
 
   // ---- tools ----
   const faultSegs = useMemo(() => segments(geo.faults, (p) => p.kind === 'fault'), [geo.faults]);
@@ -289,7 +276,6 @@ export default function Atlas() {
     if (tool === 'weather') setTool(null);
   };
   const selectLandmark = (l: Landmark) => {
-    setLandmarkMenuOpen(false);
     if (!terrain3d) setTerrain3d(true);
     apiRef.current?.flyToLandmark({ center: l.center, zoom: l.zoom, pitch: l.pitch, bearing: l.bearing });
   };
@@ -380,212 +366,96 @@ export default function Atlas() {
   const activeLimits = limits.filter((l) => l.audience === 'everyone' && l.layers.some((id) => layers.has(id)));
   const selected = PLACES.find((p) => p.id === selectedId);
   const showDock = layers.has('susc') || reportOpen;
+  const goTab = (id: TabId) => { setTab(id); setMoreOpen(false); };
 
   return (
     <>
       <div className="app">
         <header className="top">
           <div className="brand">
-            <svg width="36" height="34" viewBox="0 0 36 34" aria-hidden="true"><path d="M2 30 L14 6 L20 17 L25 10 L34 30 Z" fill="var(--accent)" /><path d="M14 6 L17 12 L12 12 Z" fill="#fff" /><path d="M5 31 L33 31" stroke="var(--ink)" strokeWidth="2" strokeLinecap="round" strokeDasharray="5 3" /></svg>
-            <div><h1>{t(lang, 'Kazakhstan Landslide and Earthquake Atlas')}</h1><p>{t(lang, 'Active faults, earthquakes, slopes, mudflows and rain triggers · screening information, not an official hazard map')}</p></div>
+            <svg className="brand-mark" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+              <rect width="34" height="34" rx="5" fill="var(--accent)" />
+              <path d="M5 25 13.5 9l4.5 8 3-4.5L29 25" fill="none" stroke="var(--accent-ink)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+              <path d="M9 29h3m3 0h4m3 0h3" stroke="var(--accent-ink)" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <div>
+              <h1><span className="wm">SlopeWatch<b>KZ</b></span><span className="wm-sub">{t(lang, 'Landslide and earthquake atlas')}</span></h1>
+              <p>{t(lang, 'Faults, earthquakes, slopes, mudflows and rain triggers in Kazakhstan · screening information, not an official hazard map')}</p>
+            </div>
           </div>
           <div className="top-tools">
             <div className="seg" role="group" aria-label={t(lang, 'Language')}>{LANGS.map((l) => <button key={l.id} className={lang === l.id ? 'on' : ''} aria-pressed={lang === l.id} onClick={() => setLang(l.id)}>{l.label}</button>)}</div>
-            <div ref={themeMenu} className="theme-menu-wrap">
-              <button ref={themeButton} className="icon-btn" onClick={() => setThemeMenuOpen((open) => !open)} aria-label={`${t(lang, 'Color theme')}: ${t(lang, THEMES.find((theme) => theme.id === themeMode)?.label ?? 'System')}`} title={`${t(lang, 'Color theme')}: ${t(lang, THEMES.find((theme) => theme.id === themeMode)?.label ?? 'System')}`} aria-haspopup="true" aria-expanded={themeMenuOpen} aria-controls="theme-menu">{dark ? '☀' : '☾'}</button>
-              {themeMenuOpen && <div id="theme-menu" className="theme-menu" role="group" aria-label={t(lang, 'Color theme')}>
-                {THEMES.map((theme) => <button key={theme.id} type="button" className="theme-option" aria-pressed={themeMode === theme.id} onClick={() => chooseTheme(theme.id)}>{t(lang, theme.label)}<span aria-hidden="true">{themeMode === theme.id ? '✓' : ''}</span></button>)}
-              </div>}
-            </div>
+            <button className="icon-btn" onClick={share} aria-label={t(lang, 'Share link')} title={t(lang, 'Share link')}><Icon name="share" /></button>
+            <button className="icon-btn" onClick={toggleTheme} aria-label={t(lang, 'Toggle dark mode')} title={t(lang, 'Toggle dark mode')}><Icon name={dark ? 'sun' : 'moon'} /></button>
           </div>
-          <nav className="tabs" aria-label={t(lang, 'Sections')}>{TABS.map((item) => <button key={item.id} className={tab === item.id ? 'on' : ''} onClick={() => setTab(item.id)}>{t(lang, item.label)}</button>)}</nav>
+          <nav className="tabs" aria-label={t(lang, 'Sections')}>{TABS.map((item) => <button key={item.id} className={tab === item.id ? 'on' : ''} aria-current={tab === item.id ? 'page' : undefined} onClick={() => goTab(item.id)}>{t(lang, item.label)}</button>)}</nav>
         </header>
 
-        <main className={`${tab === 'map' ? 'main-map' : 'main-page'}${tab === 'map' && mapExpanded ? ' map-expanded-main' : ''}`}>
+        <main className={tab === 'map' ? 'main-map' : 'main-page'}>
           <section className={`map-layout${mapExpanded ? ' map-expanded' : ''}`} hidden={tab !== 'map'}>
-            <Sidebar filters={filters} setFilters={setFilters} types={types} toggleType={toggleType} counts={counts} shown={shown} lang={lang} selectedId={selectedId} onSelect={setSelectedId} inventoryNote={limits.find((l) => l.id === 'inventory')?.short ?? ''} onDataHelp={() => setDataHelpOpen(true)}
-              onReset={() => { setFilters({ q: '', region: '', verification: '', sort: 'newest' }); setTypes(new Set(ALL_TYPES)); }} />
+            <Sidebar filters={filters} setFilters={setFilters} types={types} toggleType={toggleType} counts={counts} shown={shown} lang={lang} selectedId={selectedId} onSelect={setSelectedId}
+              inventoryNote={limits.find((l) => l.id === 'inventory')?.short ?? ''} onDataHelp={() => setDataHelpOpen(true)} onReset={resetFilters} activeFilters={activeFilters} onDownload={downloadRecords} />
             <div className="map-wrap">
-              <button className="map-expand-toggle" type="button" onClick={() => setMapExpanded((expanded) => !expanded)} aria-label={t(lang, mapExpanded ? 'Restore map' : 'Expand map')} title={t(lang, mapExpanded ? 'Restore map' : 'Expand map')}>{mapExpanded ? '⤢' : '⛶'}</button>
-              <HazardPulse
-                sites={sites}
-                quakes={quakes}
-                reports={reports}
-                lang={lang}
-                onFlyToSite={(site) => {
-                  apiRef.current?.flyTo(site.lon, site.lat, 12);
-                  checkWeatherAt(site.lon, site.lat, localName(site.name, lang));
-                }}
-                onFlyToQuake={(quake) => {
-                  apiRef.current?.flyTo(quake.lon, quake.lat, 11);
-                  setQuakePanelOpen(true);
-                }}
-                onOpenCommunity={() => {
-                  setTab('community');
-                }}
-              />
-              {ready && (
-                <MapView visible={tab === 'map'} resizeKey={mapExpanded} basemap={basemap} dark={dark} focus={focus} layers={layers} places={shown} lang={lang} selectedId={selectedId} onSelect={setSelectedId}
-                  geo={geo} quakes={quakeFC} sites={sites} reports={reports} susc={susc} terrain3d={terrain3d} tool={tool} onMapClick={onMapClick}
-                  profilePath={profilePath} draft={draft} initialView={initialView} onMove={onMove} onNotice={setNotice} apiRef={apiRef} sunAngle={sunAngle} />
-              )}
-              <MapControlDock lang={lang}>
-              <div className="map-tools">
-                <div className="tool-row">
-                  <button className={`focus-toggle ${focus ? 'on' : ''}`} aria-pressed={focus} onClick={() => setFocus((f) => !f)} title={t(lang, 'Dim the map outside Kazakhstan')}>{t(lang, 'Focus on Kazakhstan')}</button>
-                  <button className={`focus-toggle ${terrain3d ? 'on' : ''}`} aria-pressed={terrain3d} onClick={() => setTerrain3d((t) => !t)} title={t(lang, 'Tilt the map and show the mountains in 3D')}>{t(lang, '3D terrain')}</button>
-                  <div ref={landmarkMenuRef} className="landmark-menu-wrap">
-                    <button
-                      className={`focus-toggle landmark-btn ${landmarkMenuOpen ? 'on' : ''}`}
-                      type="button"
-                      aria-haspopup="true"
-                      aria-expanded={landmarkMenuOpen}
-                      onClick={() => setLandmarkMenuOpen((o) => !o)}
-                      title={t(lang, 'Click to fly and view in 3D')}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: 5, verticalAlign: '-1px' }}><path d="m8 3 4 8 5-5 5 15H2L8 3z" /></svg>
-                      {t(lang, '3D landmarks')} ▾
+              <StatusStrip sites={sites} sitesState={sState} quakes={quakes} quakeState={qState} lang={lang}
+                onOpenTriggers={() => goTab('triggers')}
+                onFlyToSite={(site) => { apiRef.current?.flyTo(site.lon, site.lat, 11); checkWeatherAt(site.lon, site.lat, localName(site.name, lang)); }}
+                onFlyToQuake={(quake) => { setLayers((s) => new Set(s).add('quakes')); apiRef.current?.flyTo(quake.lon, quake.lat, 8); }} />
+              <div className="map-stage">
+                {ready && (
+                  <MapView visible={tab === 'map'} resizeKey={mapExpanded} basemap={basemap} dark={dark} focus={focus} layers={layers} places={shown} lang={lang} selectedId={selectedId} onSelect={setSelectedId}
+                    geo={geo} quakes={quakeFC} sites={sites} reports={reports} susc={susc} terrain3d={terrain3d} tool={tool} onMapClick={onMapClick}
+                    profilePath={profilePath} draft={draft} initialView={initialView} onMove={onMove} onNotice={setNotice} apiRef={apiRef} sunAngle={sunAngle} />
+                )}
+                <div className={`map-actions${layersOpen || toolsOpen ? ' open' : ''}`}>
+                  {!toolsOpen && <LayerBar open={layersOpen} setOpen={setLayersOpen} layers={layers} toggle={toggleLayer} basemap={basemap} setBasemap={setBasemap} lang={lang} />}
+                  {!layersOpen && (
+                    <ToolsMenu open={toolsOpen} setOpen={setToolsOpen} lang={lang}
+                      focus={focus} onFocus={() => setFocus((f) => !f)} terrain3d={terrain3d} onTerrain={() => setTerrain3d((v) => !v)}
+                      listHidden={mapExpanded} onToggleList={() => setMapExpanded((v) => !v)} sunAngle={sunAngle} onSun={setSunAngle} onLandmark={selectLandmark}
+                      profileOn={profileOpen} onProfile={profileOpen ? closeProfile : startProfile} weatherOn={tool === 'weather' || weatherOpen} onWeather={startWeather}
+                      locating={locating} onLocate={handleLocateMe} onReport={startReport} onShare={share} onPrint={print} onPng={downloadPng} onLimits={() => setLimitsOpen(true)} />
+                  )}
+                  {!layersOpen && !toolsOpen && layers.has('quakes') && !quakePanelOpen && qState === 'ok' && (
+                    <button className="map-btn quake-chip" onClick={() => setQuakePanelOpen(true)} title={t(lang, 'Filter earthquakes by magnitude and year')}>
+                      <Icon name="wave" /><span>M {qf.minMag.toFixed(1)}+ · {qf.yFrom}–{qf.yTo}</span>
                     </button>
-                    {landmarkMenuOpen && (
-                      <div className="landmark-dropdown" role="menu" aria-label={t(lang, '3D hazard landmarks')}>
-                        <div className="landmark-dropdown-header">
-                          <span>{t(lang, '3D hazard landmarks')}</span>
-                        </div>
-                        <div className="landmark-list">
-                          {LANDMARKS.map((lm) => (
-                            <button
-                              key={lm.id}
-                              type="button"
-                              className="landmark-item"
-                              role="menuitem"
-                              onClick={() => selectLandmark(lm)}
-                            >
-                              <div className="landmark-item-top">
-                                <span className="landmark-name">{landmarkName(lm, lang)}</span>
-                                <span className="landmark-badge">{landmarkBadge(lm, lang)}</span>
-                              </div>
-                              <div className="landmark-desc">{landmarkDesc(lm, lang)}</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div ref={sunMenuRef} className="sun-menu-wrap">
-                    <button
-                      className={`focus-toggle sun-btn ${sunMenuOpen ? 'on' : ''}`}
-                      type="button"
-                      aria-haspopup="true"
-                      aria-expanded={sunMenuOpen}
-                      onClick={() => setSunMenuOpen((o) => !o)}
-                      title={t(lang, 'Sun & lighting')}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: 5, verticalAlign: '-1px' }}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>
-                      {t(lang, 'Sun angle')} ({sunAngle}°) ▾
-                    </button>
-                    {sunMenuOpen && (
-                      <div className="sun-dropdown" role="menu" aria-label={t(lang, 'Sun & lighting')}>
-                        <div className="sun-presets">
-                          <button type="button" className={`sun-preset-btn ${sunAngle === 90 ? 'active' : ''}`} onClick={() => setSunAngle(90)}>{t(lang, 'Dawn')}</button>
-                          <button type="button" className={`sun-preset-btn ${sunAngle === 180 ? 'active' : ''}`} onClick={() => setSunAngle(180)}>{t(lang, 'Noon')}</button>
-                          <button type="button" className={`sun-preset-btn ${sunAngle === 225 ? 'active' : ''}`} onClick={() => setSunAngle(225)}>{t(lang, 'Afternoon')}</button>
-                          <button type="button" className={`sun-preset-btn ${sunAngle === 315 ? 'active' : ''}`} onClick={() => setSunAngle(315)}>{t(lang, 'Sunset')}</button>
-                        </div>
-                        <div className="sun-slider-wrap">
-                          <label>
-                            <span>{t(lang, 'Sun angle')}: <b>{sunAngle}°</b></span>
-                            <input
-                              type="range"
-                              min={0}
-                              max={359}
-                              step={5}
-                              value={sunAngle}
-                              onChange={(e) => setSunAngle(+e.target.value)}
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    className={`focus-toggle ${locating || locateOpen ? 'on' : ''}`}
-                    onClick={handleLocateMe}
-                    disabled={locating}
-                    title={t(lang, 'Your Location Hazard Screening')}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: 5, verticalAlign: '-1px' }}><circle cx="12" cy="12" r="3" /><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /></svg>
-                    {locating ? t(lang, 'Locating…') : t(lang, 'Locate me')}
-                  </button>
-                  <button className={`focus-toggle ${profileOpen ? 'on' : ''}`} onClick={profileOpen ? closeProfile : startProfile} title={t(lang, 'Draw a line to get an elevation profile and the faults it crosses')}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: 5, verticalAlign: '-1px' }}><path d="M3 19 9 12l4 4 8-10" /></svg>
-                    {t(lang, 'Profile')}
-                  </button>
-                  <button className={`focus-toggle ${tool === 'weather' || weatherOpen ? 'on' : ''}`} onClick={startWeather} title={t(lang, 'Inspect live weather & rainfall at any point')}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: 5, verticalAlign: '-1px' }}><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" /></svg>
-                    {t(lang, 'Check weather')}
-                  </button>
-                  <button className="focus-toggle" onClick={startReport}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: 5, verticalAlign: '-1px' }}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                    {t(lang, 'Report a hazard')}
-                  </button>
+                  )}
                 </div>
-                <div className="tool-row">
-                  <div className="basemaps" role="group" aria-label={t(lang, 'Basemap')}>{BASEMAPS.map((b) => <button key={b.id} className={basemap === b.id ? 'on' : ''} onClick={() => setBasemap(b.id)}>{t(lang, b.label)}</button>)}</div>
-                  <button className="focus-toggle" onClick={share}>{t(lang, 'Share')}</button>
-                  <button className="focus-toggle" onClick={print} title={t(lang, 'Print, or save as PDF from the print dialog')}>{t(lang, 'Print')}</button>
-                  <button className="focus-toggle" onClick={downloadPng}>{t(lang, 'PNG')}</button>
-                  <button className="focus-toggle warn" onClick={() => setLimitsOpen(true)} title={t(lang, 'Read the limits of this data')}>{t(lang, 'Limits')}</button>
-                </div>
+                {layers.has('susc') && !geo.faults.features.some((f) => f.properties?.kind === 'fault') && <div className="data-banner" role="status"><b>{t(lang, 'No available data')}</b><span>{t(lang, 'Susceptibility cannot be shown because fault data is unavailable.')}</span><button className="text-button" onClick={() => setDataHelpOpen(true)}>{t(lang, 'How to contribute data')}</button></div>}
+                {layers.has('triggers') && sState === 'error' && <div className="data-banner" role="status"><b>{t(lang, 'No available data')}</b><span>{t(lang, 'Open-Meteo weather feed is unavailable. No trigger levels are shown or estimated.')}</span><button className="text-button" onClick={() => setDataHelpOpen(true)}>{t(lang, 'How to contribute data')}</button></div>}
+                {layers.has('quakes') && quakePanelOpen && (
+                  <DraggablePanel placement="right" title={t(lang, 'Earthquakes')} onClose={() => setQuakePanelOpen(false)} lang={lang}>
+                    <QuakePanel f={qf} setF={setQf} quakes={quakes} shown={quakesShown.length} state={qState} lang={lang} />
+                  </DraggablePanel>
+                )}
+                {showDock && (
+                  <div className="dock">
+                    {layers.has('susc') && !reportOpen && <SuscPanel p={susc} setP={setSusc} lang={lang} />}
+                    {reportOpen && <ReportDrawer draft={draft} picking={tool === 'report'} onPick={() => setTool('report')} onLocate={(lng, lat) => { setDraft([lng, lat]); setTool(null); apiRef.current?.flyTo(lng, lat, 11); }} lang={lang}
+                      onClose={() => { setReportOpen(false); setTool(null); setDraft(null); }} onDone={(r) => { setReports((x) => [r, ...x]); setLayers((s) => new Set(s).add('reports')); setDraft(null); }} />}
+                  </div>
+                )}
+                {profileOpen && (
+                  <DraggablePanel placement="bottom" title={t(lang, 'Elevation profile')} onClose={closeProfile} lang={lang}>
+                    <ProfilePanel points={profilePath.length} profile={profile} busy={profileBusy} onClear={closeProfile} onUndo={() => setProfilePath((p) => p.slice(0, -1))}
+                      onFlyover={() => { if (profilePath.length >= 2) { if (!terrain3d) setTerrain3d(true); apiRef.current?.startFlyover(profilePath); } }} lang={lang} />
+                  </DraggablePanel>
+                )}
+                {weatherOpen && (
+                  <DraggablePanel placement="right" title={t(lang, 'Rain at a point')} onClose={closeWeather} lang={lang}>
+                    <WeatherPanel site={weatherSite} loading={weatherLoading} error={weatherError} elevation={weatherElevation} slope={weatherSlope} onClose={closeWeather} lang={lang} />
+                  </DraggablePanel>
+                )}
+                {locateOpen && locateData && (
+                  <DraggablePanel placement="right" title={t(lang, 'Near me')} onClose={() => setLocateOpen(false)} lang={lang}>
+                    <LocatePanel data={locateData} onClose={() => setLocateOpen(false)} lang={lang} />
+                  </DraggablePanel>
+                )}
+                <Legend layers={layers} types={types} limits={activeLimits} lang={lang} onDataHelp={() => setDataHelpOpen(true)} />
+                {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice(null)} aria-label={t(lang, 'Dismiss')}><Icon name="close" /></button></div>}
+                {tool && <div className="tool-hint">{t(lang, tool === 'report' ? 'Tap the map to place your report' : tool === 'weather' ? 'Tap anywhere on the map to read model rain there' : 'Tap points along the line you want to profile')}<button onClick={() => { if (tool === 'profile') closeProfile(); else setTool(null); }} aria-label={t(lang, 'Cancel')}><Icon name="close" /></button></div>}
+                {selected && <span className="sr-only">{t(lang, 'Selected')}: {nameOf(selected, lang)}</span>}
               </div>
-              <LayerBar layers={layers} toggle={toggleLayer} lang={lang} />
-              </MapControlDock>
-              {layers.has('susc') && !geo.faults.features.some((f) => f.properties?.kind === 'fault') && <div className="data-banner" role="status"><b>{t(lang, 'No available data')}</b><span>{t(lang, 'Susceptibility cannot be shown because fault data is unavailable.')}</span><button className="text-button" onClick={() => setDataHelpOpen(true)}>{t(lang, 'How to contribute data')}</button></div>}
-              {layers.has('triggers') && sState === 'error' && <div className="data-banner" role="status"><b>{t(lang, 'No available data')}</b><span>{t(lang, 'Open-Meteo weather feed is unavailable. No trigger levels are shown or estimated.')}</span><button className="text-button" onClick={() => setDataHelpOpen(true)}>{t(lang, 'How to contribute data')}</button></div>}
-              {layers.has('quakes') && quakePanelOpen && (
-                <DraggablePanel placement="right" title={t(lang, 'Earthquakes')} onClose={() => setQuakePanelOpen(false)} lang={lang}>
-                  <QuakePanel f={qf} setF={setQf} quakes={quakes} shown={quakesShown.length} state={qState} lang={lang} />
-                </DraggablePanel>
-              )}
-              {showDock && (
-                <div className="dock" style={{ top: layers.has('quakes') ? 470 : undefined }}>
-                  {layers.has('susc') && <SuscPanel p={susc} setP={setSusc} lang={lang} />}
-                  {reportOpen && <ReportDrawer draft={draft} picking={tool === 'report'} onPick={() => setTool('report')} onLocate={(lng, lat) => { setDraft([lng, lat]); setTool(null); apiRef.current?.flyTo(lng, lat, 11); }} lang={lang}
-                    onClose={() => { setReportOpen(false); setTool(null); setDraft(null); }} onDone={(r) => { setReports((x) => [r, ...x]); setLayers((s) => new Set(s).add('reports')); setDraft(null); }} />}
-                </div>
-              )}
-              {profileOpen && (
-                <DraggablePanel placement="bottom" title={t(lang, 'Elevation profile')} onClose={closeProfile} lang={lang}>
-                  <ProfilePanel
-                    points={profilePath.length}
-                    profile={profile}
-                    busy={profileBusy}
-                    onClear={closeProfile}
-                    onUndo={() => setProfilePath((p) => p.slice(0, -1))}
-                    onFlyover={() => {
-                      if (profilePath.length >= 2) {
-                        if (!terrain3d) setTerrain3d(true);
-                        apiRef.current?.startFlyover(profilePath);
-                      }
-                    }}
-                    lang={lang}
-                  />
-                </DraggablePanel>
-              )}
-              {weatherOpen && (
-                <DraggablePanel placement="right" title={t(lang, 'Weather & rain triggers')} onClose={closeWeather} lang={lang}>
-                  <WeatherPanel site={weatherSite} loading={weatherLoading} error={weatherError} elevation={weatherElevation} slope={weatherSlope} onClose={closeWeather} lang={lang} />
-                </DraggablePanel>
-              )}
-              {locateOpen && locateData && (
-                <DraggablePanel placement="right" title={t(lang, 'Your Location Hazard Screening')} onClose={() => setLocateOpen(false)} lang={lang}>
-                  <LocatePanel data={locateData} onClose={() => setLocateOpen(false)} lang={lang} />
-                </DraggablePanel>
-              )}
-              <Legend layers={layers} types={types} limits={activeLimits} lang={lang} onDataHelp={() => setDataHelpOpen(true)} />
-              {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice(null)} aria-label={t(lang, 'Dismiss')}>×</button></div>}
-              {tool && <div className="tool-hint">{t(lang, tool === 'report' ? 'Click the map to place your report' : tool === 'weather' ? 'Click anywhere on the map to inspect live weather & rain triggers' : 'Click points along the line you want to profile')}</div>}
-              <div className="provider">{t(lang, 'Basemap')}: {t(lang, getBasemapProvider(dark))}</div>
-              {selected && <span className="sr-only">{t(lang, 'Selected')}: {nameOf(selected, lang)}</span>}
             </div>
           </section>
 
@@ -594,8 +464,28 @@ export default function Atlas() {
           {tab === 'quakes' && <QuakeStats quakes={quakes} state={qState} truncated={qTrunc} lang={lang} />}
           {tab === 'community' && <Community reports={reports} onReport={startReport} lang={lang} onShow={(r) => { setTab('map'); setLayers((s) => new Set(s).add('reports')); setTimeout(() => apiRef.current?.flyTo(r.lon, r.lat, 12), 200); }} />}
           {tab === 'learn' && <Learn lang={lang} />}
-          {tab === 'data' && <DataSources limits={limits} lang={lang} onDataHelp={() => setDataHelpOpen(true)} />}
+          {tab === 'data' && <DataSources limits={limits} lang={lang} onDataHelp={() => setDataHelpOpen(true)} onDownload={downloadRecords} recordCount={PLACES.length} />}
         </main>
+
+        <nav className="bottom-nav" aria-label={t(lang, 'Sections')}>
+          {PRIMARY_TABS.map((id) => {
+            const item = TABS.find((x) => x.id === id)!;
+            return <button key={id} className={tab === id ? 'on' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => goTab(id)}><Icon name={item.icon} size={22} /><span>{t(lang, item.short)}</span></button>;
+          })}
+          <button className={MORE_TABS.includes(tab) || moreOpen ? 'on' : ''} aria-expanded={moreOpen} aria-haspopup="menu" onClick={() => setMoreOpen((o) => !o)}><Icon name="more" size={22} /><span>{t(lang, 'More')}</span></button>
+          {moreOpen && (
+            <>
+              <button className="more-backdrop" aria-label={t(lang, 'Close')} tabIndex={-1} onClick={() => setMoreOpen(false)} />
+              <div className="more-menu" role="menu">
+                {MORE_TABS.map((id) => {
+                  const item = TABS.find((x) => x.id === id)!;
+                  return <button key={id} role="menuitem" className={tab === id ? 'on' : ''} onClick={() => goTab(id)}><Icon name={item.icon} size={20} />{t(lang, item.label)}</button>;
+                })}
+                <button role="menuitem" onClick={() => { setMoreOpen(false); setLimitsOpen(true); }}><Icon name="alert" size={20} />{t(lang, 'Limits of this data')}</button>
+              </div>
+            </>
+          )}
+        </nav>
       </div>
       {limitsOpen && <LimitsDialog limits={limits} onClose={closeLimits} lang={lang} />}
       {dataHelpOpen && <DataHelpDialog lang={lang} onClose={() => setDataHelpOpen(false)} />}
