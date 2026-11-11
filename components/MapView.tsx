@@ -263,6 +263,9 @@ export default function MapView(props: Props) {
     if (!map || path.length < 2) return;
     stopFlyover();
 
+    // The terrain toggle normally adds a camera tilt. The tour owns the camera
+    // from this point, so mark that setup complete before React handles the toggle.
+    terrainCameraApplied.current = true;
     try {
       map.setTerrain({ source: 'dem', exaggeration: 1.15 });
     } catch { /* ignore */ }
@@ -561,7 +564,7 @@ export default function MapView(props: Props) {
         if (mapRef.current !== map) return;
         map.resize();
         map.triggerRepaint();
-        if (shouldApplyTerrainCamera && P.current.terrain3d && !terrainCameraApplied.current) applyTerrainCamera(map);
+        if (shouldApplyTerrainCamera && P.current.terrain3d && !terrainCameraApplied.current && !flyoverActiveRef.current) applyTerrainCamera(map);
         if (map.loaded()) setMapLoading(false);
       });
       mapLoadingTimer = setTimeout(() => setMapLoading(false), 2000);
@@ -692,14 +695,15 @@ export default function MapView(props: Props) {
     currentDark.current = props.dark;
     ready.current = false;
     setMapLoading(true);
-    map.setStyle(getBasemapStyle(props.basemap, props.dark));
+    map.setStyle(getBasemapStyle(props.basemap, props.dark), { diff: false });
   }, [props.basemap, props.dark]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (props.terrain3d) {
-      if (ready.current) applyTerrainCamera(map);
+      if (flyoverActiveRef.current) terrainCameraApplied.current = true;
+      else if (ready.current) applyTerrainCamera(map);
       else terrainCameraApplied.current = false;
     }
     else {

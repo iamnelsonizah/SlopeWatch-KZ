@@ -166,6 +166,7 @@ button.status-item:hover { background: var(--soft); }
 .status-dot.lv-elevated { background: var(--warn); }
 
 .map-actions { position: absolute; top: 12px; right: 12px; z-index: 6; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-height: calc(100% - 24px); }
+.map-actions.open { z-index: 8; }
 .map-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 7px 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); color: var(--ink); box-shadow: var(--shadow); font-size: 13px; }
 .map-btn:hover { border-color: var(--ink); }
 .map-btn .count { padding: 0 6px; border-radius: 2px; background: var(--soft); color: var(--muted); font-family: var(--mono); font-size: 11px; font-weight: 700; }
@@ -483,7 +484,7 @@ table.compact td:nth-child(-n+4) { font-family: var(--mono); font-size: 12px; wh
   .terrain-hud { display: none; }
   .floating-panel, .floating-panel.floating-profile { left: 8px !important; right: 8px; top: auto !important; bottom: 20px; width: auto; max-width: none; max-height: min(66%, calc(100% - 64px)); z-index: 11; }
   .panel-drag-handle { cursor: default; }
-  .dock { top: auto; left: 8px; right: 8px; bottom: 20px; width: auto; max-width: none; max-height: min(70%, calc(100% - 64px)); z-index: 11; }
+  .dock { top: auto; left: 8px; right: 8px; bottom: 20px; width: auto; max-width: none; max-height: min(70%, calc(100% - 64px)); z-index: 7; }
   .maplibregl-popup { max-width: min(320px, calc(100vw - 32px)) !important; }
   .maplibregl-popup-content { max-height: min(48dvh, 380px); overflow-y: auto; }
 
